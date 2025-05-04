@@ -1,7 +1,7 @@
-from django.contrib import admin
-from django.core.exceptions import ValidationError
+from django.contrib import admin # type: ignore
+from django.core.exceptions import ValidationError # type: ignore
 from .models import CustomUser, Store, Manager, Staff, Product, Category
-from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.admin import UserAdmin # type: ignore
 
 
 # Customizing the User Admin
