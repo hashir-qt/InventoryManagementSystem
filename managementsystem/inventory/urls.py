@@ -1,12 +1,15 @@
 from django.urls import path # type: ignore
 from .views import (
-    StoreListCreateView, StoreRetrieveUpdateDestroyView,
+    ManagerView, StaffView, StoreListCreateView, StoreRetrieveUpdateDestroyView,
     CategoryListCreateView, CategoryRetrieveUpdateDestroyView,
-    ProductListCreateView, ProductRetrieveUpdateDestroyView,
-    ManagerView, StaffView, UserView,
+    ProductListCreateView, ProductRetrieveUpdateDestroyView, UserView,
+    login_page, dashboard_page, me
 )
 
 urlpatterns = [
+     # Front-End
+     path('', login_page, name='login'),
+    path('dashboard/', dashboard_page, name='dashboard'),
     # Store URLs
     path('stores/', StoreListCreateView.as_view(), name='store-list-create'),
     path('stores/<int:pk>/', StoreRetrieveUpdateDestroyView.as_view(), name='store-detail'),
@@ -29,4 +32,7 @@ urlpatterns = [
     # User URLs
     path('users/', UserView.as_view(), name='user-list-create'),
     path('users/<int:pk>/', UserView.as_view(), name='user-detail'),
+
+    # Me endpoint
+    path('me/', me, name='me'),
 ]

@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import ( # type: ignore
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('inventory.urls')),  # Include your inventory app URLs
+    path('', include('inventory.urls_frontend')),  # Frontend pages
 
     # JWT Auth endpoints
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

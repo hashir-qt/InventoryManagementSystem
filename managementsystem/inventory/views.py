@@ -1,10 +1,22 @@
-from rest_framework import generics, permissions, status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from .models import Store, Category, Product, CustomUser
+from rest_framework import generics, permissions, status # type: ignore
+from rest_framework.response import Response # type: ignore
+from rest_framework.views import APIView # type: ignore
+from rest_framework.decorators import api_view, permission_classes # type: ignore
+from .models import Store, Category, Product, CustomUser, Staff
 from .serializers import StoreSerializer, CategorySerializer, ProductSerializer, UserSerializer
 from .permissions import IsAdmin, IsManager, IsStaff
+from django.shortcuts import render  # type: ignore
 
+
+
+
+
+def login_page(request):
+    return render(request, 'inventory/login.html')
+
+
+def dashboard_page(request):
+    return render(request, 'inventory/dashboard.html')
 # --- Store Views (Admin CRUD / Manager View only) ---
 
 class StoreListCreateView(generics.ListCreateAPIView):
@@ -111,12 +123,6 @@ class ManagerView(APIView):
 
 
 # --- Staff Assignment Views (Admin only) ---
-
-from rest_framework import permissions, status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from .models import Store, CustomUser, Staff
-from .permissions import IsAdmin  # Your custom IsAdmin permission
 
 class StaffView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -231,3 +237,18 @@ class UserView(generics.ListCreateAPIView, generics.RetrieveUpdateDestroyAPIView
 
     def perform_destroy(self, instance):
         instance.delete()
+
+
+# --- Authenticated current user ---
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def me(request):
+    user = request.user
+    return Response({
+        "id": user.id,
+        "username": getattr(user, "username", ""),
+        "email": getattr(user, "email", ""),
+        "role": getattr(user, "role", None),
+        "is_active": getattr(user, "is_active", False),
+    })

@@ -1,0 +1,293 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}Dashboard - Inventory{% endblock %}
+
+{% block header_actions %}
+<div class="flex items-center gap-3">
+    <button id="refreshProducts" class="bg-gray-100 hover:bg-gray-200 text-gray-800 rounded px-3 py-1">Refresh</button>
+    <button id="logoutBtn" class="bg-red-50 hover:bg-red-100 text-red-700 rounded px-3 py-1">Logout</button>
+    <span id="roleBadge" class="ml-2 inline-flex items-center text-xs font-semibold bg-indigo-50 text-indigo-700 px-2 py-1 rounded">Role</span>
+    <span id="userBadge" class="inline-flex items-center text-xs text-gray-600"></span>
+  </div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <section class="lg:col-span-2">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-semibold">Products</h2>
+      <button id="openCreateModal" class="bg-indigo-600 text-white rounded px-3 py-1 hover:bg-indigo-700">Add Product</button>
+    </div>
+    <div class="overflow-hidden rounded-lg border bg-white">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">Name</th>
+            <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">Price</th>
+            <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">Stock</th>
+            <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">Store</th>
+            <th class="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider">Category</th>
+            <th class="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody id="productsBody" class="divide-y divide-gray-100"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="space-y-6">
+    <div class="bg-white rounded-lg border p-4">
+      <h3 class="font-semibold mb-3">Quick create</h3>
+      <form id="quickCreateForm" class="grid grid-cols-1 gap-3">
+        <input type="text" id="qc_name" placeholder="Name" class="rounded border px-3 py-2" required />
+        <input type="number" step="0.01" id="qc_price" placeholder="Price" class="rounded border px-3 py-2" required />
+        <input type="number" id="qc_stock" placeholder="Stock" class="rounded border px-3 py-2" required />
+        <input type="number" id="qc_store" placeholder="Store ID" class="rounded border px-3 py-2" required />
+        <input type="number" id="qc_category" placeholder="Category ID" class="rounded border px-3 py-2" required />
+        <button class="bg-indigo-600 text-white rounded px-3 py-2 hover:bg-indigo-700" type="submit">Create</button>
+        <p id="qc_error" class="hidden text-sm text-red-600"></p>
+      </form>
+    </div>
+
+    <div class="bg-white rounded-lg border p-4">
+        <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold">Stores</h3>
+        <button id="createStoreBtn" class="hidden text-sm bg-green-600 text-white rounded px-2 py-1">Add</button>
+      </div>
+      <ul id="storesList" class="space-y-2 text-sm text-gray-700"></ul>
+    </div>
+
+    <div class="bg-white rounded-lg border p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold">Categories</h3>
+        <div class="flex items-center gap-2">
+          <input id="newCategoryName" class="hidden rounded border px-2 py-1 text-sm" placeholder="New category" />
+          <button id="createCategoryBtn" class="hidden text-sm bg-green-600 text-white rounded px-2 py-1">Add</button>
+        </div>
+      </div>
+      <ul id="categoriesList" class="space-y-2 text-sm text-gray-700"></ul>
+    </div>
+  </section>
+</div>
+
+<!-- Create/Edit modal -->
+<div id="modal" class="fixed inset-0 bg-black/30 hidden items-center justify-center p-4">
+  <div class="bg-white w-full max-w-lg rounded-lg shadow">
+    <div class="flex items-center justify-between px-4 py-3 border-b">
+      <h3 id="modalTitle" class="font-semibold">Create product</h3>
+      <button id="closeModal" class="text-gray-500 hover:text-gray-700">✕</button>
+    </div>
+    <form id="modalForm" class="p-4 space-y-3">
+      <input type="hidden" id="modal_id" />
+      <input class="w-full rounded border px-3 py-2" id="modal_name" placeholder="Name" required />
+      <input class="w-full rounded border px-3 py-2" id="modal_price" type="number" step="0.01" placeholder="Price" required />
+      <input class="w-full rounded border px-3 py-2" id="modal_stock" type="number" placeholder="Stock" required />
+      <input class="w-full rounded border px-3 py-2" id="modal_store" type="number" placeholder="Store ID" required />
+      <input class="w-full rounded border px-3 py-2" id="modal_category" type="number" placeholder="Category ID" required />
+      <div class="flex items-center gap-3 pt-2">
+        <button class="bg-indigo-600 text-white rounded px-4 py-2" type="submit">Save</button>
+        <button id="deleteBtn" class="hidden bg-red-600 text-white rounded px-4 py-2" type="button">Delete</button>
+        <p id="modal_error" class="text-sm text-red-600 hidden"></p>
+      </div>
+    </form>
+  </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function authHeaders() {
+  const token = localStorage.getItem('access');
+  if (!token) return {};
+  return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+}
+
+function requireAuth() {
+  if (!localStorage.getItem('access')) {
+    window.location.href = '/';
+  }
+}
+
+async function fetchJSON(url, options = {}) {
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || 'Request failed');
+  }
+  return res.json();
+}
+
+async function loadProfile() {
+  const me = await fetchJSON('/api/me/', { headers: authHeaders() });
+  const role = me.role || 'authenticated';
+  document.getElementById('roleBadge').textContent = role;
+  document.getElementById('userBadge').textContent = me.username || '';
+
+  const canManageCategories = role === 'admin' || role === 'manager';
+  document.getElementById('createCategoryBtn').classList.toggle('hidden', !canManageCategories);
+  document.getElementById('newCategoryName').classList.toggle('hidden', !canManageCategories);
+
+  const canManageStores = role === 'admin';
+  document.getElementById('createStoreBtn').classList.toggle('hidden', !canManageStores);
+}
+
+async function loadProducts() {
+  const data = await fetchJSON('/api/products/', { headers: authHeaders() });
+  const tbody = document.getElementById('productsBody');
+  tbody.innerHTML = '';
+  data.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="px-4 py-2">${p.name}</td>
+      <td class="px-4 py-2">$${Number(p.price).toFixed(2)}</td>
+      <td class="px-4 py-2">${p.stock}</td>
+      <td class="px-4 py-2">${p.store}</td>
+      <td class="px-4 py-2">${p.category}</td>
+      <td class="px-4 py-2 text-right">
+        <button class="text-indigo-600 hover:underline" data-edit="${p.id}">Edit</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function loadStores() {
+  const data = await fetchJSON('/api/stores/', { headers: authHeaders() });
+  const list = document.getElementById('storesList');
+  list.innerHTML = '';
+  data.forEach(s => {
+    const li = document.createElement('li');
+    li.textContent = `#${s.id} ${s.name} — ${s.location}`;
+    list.appendChild(li);
+  });
+}
+
+async function loadCategories() {
+  const data = await fetchJSON('/api/categories/', { headers: authHeaders() });
+  const list = document.getElementById('categoriesList');
+  list.innerHTML = '';
+  data.forEach(c => {
+    const li = document.createElement('li');
+    li.textContent = `#${c.id} ${c.name}`;
+    list.appendChild(li);
+  });
+}
+
+async function createCategory() {
+  const name = document.getElementById('newCategoryName').value.trim();
+  if (!name) return;
+  await fetchJSON('/api/categories/', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name }) });
+  document.getElementById('newCategoryName').value = '';
+  await loadCategories();
+}
+
+async function createStore() {
+  const name = prompt('Store name');
+  if (!name) return;
+  const email = prompt('Store email') || '';
+  const phone_number = prompt('Phone number') || '';
+  const location = prompt('Location') || '';
+  await fetchJSON('/api/stores/', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name, email, phone_number, location }) });
+  await loadStores();
+}
+
+function openModal(p = null) {
+  document.getElementById('modal').classList.remove('hidden');
+  document.getElementById('modal').classList.add('flex');
+  document.getElementById('modal_error').classList.add('hidden');
+  const isEdit = !!p;
+  document.getElementById('modalTitle').textContent = isEdit ? 'Edit product' : 'Create product';
+  document.getElementById('deleteBtn').classList.toggle('hidden', !isEdit);
+
+  document.getElementById('modal_id').value = p?.id || '';
+  document.getElementById('modal_name').value = p?.name || '';
+  document.getElementById('modal_price').value = p?.price || '';
+  document.getElementById('modal_stock').value = p?.stock || '';
+  document.getElementById('modal_store').value = p?.store || '';
+  document.getElementById('modal_category').value = p?.category || '';
+}
+
+function closeModal() {
+  const modal = document.getElementById('modal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+}
+
+async function createOrUpdateProduct(e) {
+  e.preventDefault();
+  const id = document.getElementById('modal_id').value;
+  const payload = {
+    name: document.getElementById('modal_name').value.trim(),
+    price: document.getElementById('modal_price').value,
+    stock: document.getElementById('modal_stock').value,
+    store: Number(document.getElementById('modal_store').value),
+    category: Number(document.getElementById('modal_category').value)
+  };
+  const url = id ? `/api/products/${id}/` : '/api/products/';
+  const method = id ? 'PUT' : 'POST';
+  try {
+    await fetchJSON(url, { method, headers: authHeaders(), body: JSON.stringify(payload) });
+    closeModal();
+    await loadProducts();
+  } catch (err) {
+    const el = document.getElementById('modal_error');
+    el.textContent = err.message || 'Save failed';
+    el.classList.remove('hidden');
+  }
+}
+
+async function deleteProduct() {
+  const id = document.getElementById('modal_id').value;
+  if (!id) return;
+  await fetchJSON(`/api/products/${id}/`, { method: 'DELETE', headers: authHeaders() });
+  closeModal();
+  await loadProducts();
+}
+
+async function quickCreate(e) {
+  e.preventDefault();
+  const payload = {
+    name: document.getElementById('qc_name').value.trim(),
+    price: document.getElementById('qc_price').value,
+    stock: document.getElementById('qc_stock').value,
+    store: Number(document.getElementById('qc_store').value),
+    category: Number(document.getElementById('qc_category').value)
+  };
+  try {
+    await fetchJSON('/api/products/', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+    document.getElementById('quickCreateForm').reset();
+    await loadProducts();
+  } catch (err) {
+    const el = document.getElementById('qc_error');
+    el.textContent = err.message || 'Create failed';
+    el.classList.remove('hidden');
+  }
+}
+
+document.addEventListener('click', async (e) => {
+  const editId = e.target.getAttribute('data-edit');
+  if (editId) {
+    const products = await fetchJSON('/api/products/', { headers: authHeaders() });
+    const p = products.find(x => String(x.id) === String(editId));
+    if (p) openModal(p);
+  }
+});
+
+document.getElementById('openCreateModal').addEventListener('click', () => openModal());
+document.getElementById('closeModal').addEventListener('click', closeModal);
+document.getElementById('modalForm').addEventListener('submit', createOrUpdateProduct);
+document.getElementById('deleteBtn').addEventListener('click', deleteProduct);
+document.getElementById('quickCreateForm').addEventListener('submit', quickCreate);
+document.getElementById('refreshProducts').addEventListener('click', loadProducts);
+document.getElementById('logoutBtn').addEventListener('click', () => { localStorage.clear(); window.location.href = '/'; });
+document.getElementById('createCategoryBtn').addEventListener('click', createCategory);
+document.getElementById('createStoreBtn').addEventListener('click', createStore);
+
+requireAuth();
+loadProfile();
+loadProducts();
+loadStores();
+loadCategories();
+</script>
+{% endblock %}
+
+
